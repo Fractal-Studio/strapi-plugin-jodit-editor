@@ -375,6 +375,9 @@ const JoditInput: React.FC<JoditInputProps> = ({
     readonly: disabled || options.readonly || false,
     height: height,
     toolbar: showToolbar,
+    adaptive: false,            // Отключает общую адаптивность
+    toolbarAdaptive: false,     // Запрещает прятать кнопки в "три точки"
+    width: '100%',
     placeholder: formatMessage({
       id: placeholder || 'jodit-editor.placeholder',
       defaultMessage: intlLabel?.defaultMessage || 'Start typing here...',
