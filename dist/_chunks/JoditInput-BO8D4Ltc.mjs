@@ -1,20 +1,15 @@
-"use strict";
-Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-const jsxRuntime = require("react/jsx-runtime");
-const react = require("react");
-const styled = require("styled-components");
-const JoditEditorImport = require("jodit-react");
-const reactIntl = require("react-intl");
-const designSystem = require("@strapi/design-system");
-const admin = require("@strapi/strapi/admin");
-const index = require("./index-Nfq3f9eZ.js");
-const _interopDefault = (e) => e && e.__esModule ? e : { default: e };
-const styled__default = /* @__PURE__ */ _interopDefault(styled);
-const JoditEditorImport__default = /* @__PURE__ */ _interopDefault(JoditEditorImport);
-const JoditEditor = JoditEditorImport__default.default.default || JoditEditorImport__default.default;
+import { jsxs, jsx } from "react/jsx-runtime";
+import { memo, useRef, useState, useCallback, useMemo } from "react";
+import styled from "styled-components";
+import JoditEditorImport from "jodit-react";
+import { useIntl } from "react-intl";
+import { Field, Loader } from "@strapi/design-system";
+import { useFetchClient, useStrapiApp } from "@strapi/strapi/admin";
+import { D as DEFAULT_BUTTONS, S as STRAPI_MEDIA_BUTTON_NAME } from "./index-D0C-A_3k.mjs";
+const JoditEditor = JoditEditorImport.default || JoditEditorImport;
 const cursorPlaceholder = `current_cursor_placeholder`;
 const cursorPlaceholderContent = `<${cursorPlaceholder}></${cursorPlaceholder}>`;
-const JoditContainer = styled__default.default.div`
+const JoditContainer = styled.div`
   h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
   }
@@ -72,7 +67,7 @@ const JoditContainer = styled__default.default.div`
   }
 
   /* Визуализация кастомного класса в редакторе */
-  .text-to-copy {
+  .text-to-copy, .jodit-btn {
     background-color: #e3f2fd;
     border: 1px dashed #2196f3;
     padding: 2px 4px;
@@ -131,7 +126,7 @@ const pick = (object, keys) => {
 const MediaLib = ({ isOpen = false, onChange = () => {
 }, onToggle = () => {
 } }) => {
-  const components = admin.useStrapiApp("ImageDialog", (state) => state.components);
+  const components = useStrapiApp("ImageDialog", (state) => state.components);
   if (!components || !isOpen) return null;
   const ImageDialog = components?.["media-library"] ?? null;
   const handleSelectAssets = (files) => {
@@ -153,7 +148,7 @@ const MediaLib = ({ isOpen = false, onChange = () => {
     return null;
   }
   const ComponentToRender = ImageDialog?.default || ImageDialog;
-  return /* @__PURE__ */ jsxRuntime.jsx(
+  return /* @__PURE__ */ jsx(
     ComponentToRender,
     {
       onClose: onToggle,
@@ -195,13 +190,105 @@ const JoditInput = ({
       toggleMediaLib();
     }
   };
-  const { formatMessage } = reactIntl.useIntl();
-  const { post } = admin.useFetchClient();
-  const editorRef = react.useRef(null);
-  const [mediaLibVisible, setMediaLibVisible] = react.useState(false);
-  const [initialValue] = react.useState(value || "");
-  const [isLoading, setIsLoading] = react.useState(false);
-  const toggleMediaLib = react.useCallback(() => {
+  const copyTextButton = {
+    name: "copytext",
+    iconURL: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgLTk2MCA5NjAgOTYwIiB3aWR0aD0iMjQiIGZpbGw9IiMwMDAwMDAiPjxwYXRoIGQ9Ik0zNjAtMjQwcS0zMyAwLTU2LjUtMjMuNVQyODAtMzIwdi00ODBxMC0zMyAyMy41LTU2LjVUMzYwLTg4MGgzNjBxMzMgMCA1Ni41IDIzLjVUODAwLTgwMHY0ODBxMCAzMy0yMy41IDU2LjVUNzIwLTI0MEgzNjBabTAtODBoMzYwdi00ODBIMzYwdjQ4MFpNMjAwLTgwcS0zMyAwLTU2LjUtMjMuNVQxMjAtMTYwdi01NjBoODB2NTYwaDQ0MHY4MEgyMDBabTE2MC0yNDB2LTQ4MCA0ODB6Ii8+PC9zdmc+",
+    tooltip: "Делает текст копируемым",
+    exec: function(jodit) {
+      console.log("text-to-copy btn pressed");
+      const selectedHtml = jodit.selection.html;
+      if (selectedHtml && selectedHtml.trim().length > 0) {
+        jodit.selection.insertHTML(`<span class="text-to-copy">${selectedHtml}</span>`);
+      } else {
+        jodit.selection.insertHTML('<span class="text-to-copy">Текст для копирования</span>');
+      }
+    }
+  };
+  const insertLinkButton = {
+    name: "linkbtn",
+    iconURL: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGhlaWdodD0iMjRweCIgdmlld0JveD0iMCAtOTYwIDk2MCA5NjAiIHdpZHRoPSIyNHB4IiBmaWxsPSIjMWYxZjFmIj48cGF0aCBkPSJNNjgwLTE2MHYtMTIwSDU2MHYtODBoMTIwdi0xMjBoODB2MTIwaDEyMHY4MEg3NjB2MTIwaC04MFpNNDQwLTI4MEgyODBxLTgzIDAtMTQxLjUtNTguNVQ4MC00ODBxMC04MyA1OC41LTE0MS41VDI4MC02ODBoMTYwdjgwSDI4MHEtNTAgMC04NSAzNXQtMzUgODVxMCA1MCAzNSA4NXQ4NSAzNWgxNjB2ODBaTTMyMC00NDB2LTgwaDMyMHY4MEgzMjBabTU2MC00MGgtODBxMC01MC0zNS04NXQtODUtMzVINTIwdi04MGgxNjBxODMgMCAxNDEuNSA1OC41VDg4MC00ODBaIi8+PC9zdmc+",
+    tooltip: "Разместить кнопку-ссылку",
+    exec: function(jodit) {
+      const sel = jodit.selection;
+      const selectedText = jodit.editor?.ownerDocument?.getSelection()?.toString() || "";
+      const dialog = jodit.dlg({
+        buttons: []
+      });
+      dialog.setHeader("Добавить кнопку-ссылку");
+      const content = document.createElement("div");
+      content.style.display = "flex";
+      content.style.flexDirection = "column";
+      content.style.gap = "10px";
+      content.style.padding = "16px";
+      content.style.minWidth = "300px";
+      content.style.color = "#636363";
+      const textInput = document.createElement("input");
+      textInput.placeholder = "Текст кнопки";
+      textInput.value = selectedText || "Текст кнопки";
+      const urlInput = document.createElement("input");
+      urlInput.placeholder = "https://example.com";
+      const targetWrapper = document.createElement("label");
+      const targetCheckbox = document.createElement("input");
+      targetCheckbox.type = "checkbox";
+      targetWrapper.appendChild(targetCheckbox);
+      targetWrapper.appendChild(document.createTextNode(" Открывать в новом окне"));
+      const styleSelect = document.createElement("select");
+      [
+        { value: "btn-primary", label: "Primary" },
+        { value: "btn-secondary", label: "Secondary" },
+        { value: "btn-success", label: "Success" },
+        { value: "btn-warning", label: "Warning" },
+        { value: "btn-danger", label: "Danger" }
+      ].forEach((s) => {
+        const option = document.createElement("option");
+        option.value = s.value;
+        option.textContent = s.label;
+        styleSelect.appendChild(option);
+      });
+      const actions = document.createElement("div");
+      actions.style.display = "flex";
+      actions.style.justifyContent = "flex-end";
+      actions.style.gap = "10px";
+      const okBtn = document.createElement("button");
+      okBtn.textContent = "OK";
+      okBtn.className = "jodit-ui-button jodit-ui-button_primary";
+      const cancelBtn = document.createElement("button");
+      cancelBtn.textContent = "Отменить";
+      cancelBtn.className = "jodit-ui-button";
+      actions.appendChild(cancelBtn);
+      actions.appendChild(okBtn);
+      content.appendChild(textInput);
+      content.appendChild(urlInput);
+      content.appendChild(targetWrapper);
+      content.appendChild(styleSelect);
+      content.appendChild(actions);
+      dialog.setContent(content);
+      okBtn.onclick = () => {
+        const text = textInput.value || "Кнопка";
+        const url = urlInput.value || "#";
+        const style = styleSelect.value;
+        const target = targetCheckbox.checked ? ' target="_blank" rel="noopener noreferrer"' : "";
+        const html = `
+        <a href="${url}" class="btn ${style} jodit-btn"${target}>
+          ${text}
+        </a>
+    `;
+        sel.insertHTML(html);
+        dialog.close();
+      };
+      cancelBtn.onclick = () => {
+        dialog.close();
+      };
+      dialog.open();
+    }
+  };
+  const { formatMessage } = useIntl();
+  const { post } = useFetchClient();
+  const editorRef = useRef(null);
+  const [mediaLibVisible, setMediaLibVisible] = useState(false);
+  const [initialValue] = useState(value || "");
+  const [isLoading, setIsLoading] = useState(false);
+  const toggleMediaLib = useCallback(() => {
     setMediaLibVisible((prev) => !prev);
   }, []);
   const fileToMediaObject = async (file, handleFileUpload2, webpEnabled2 = []) => {
@@ -247,8 +334,8 @@ const JoditInput = ({
   };
   const options = attribute?.options || {};
   const height = options.height || 400;
-  const buttons = options.buttons ? options.buttons.split(",").map((btn) => btn.trim()) : index.DEFAULT_BUTTONS.split(",").map((btn) => btn.trim());
-  const mediaLibButtonIndex = buttons.findIndex((btn) => btn === index.STRAPI_MEDIA_BUTTON_NAME);
+  const buttons = options.buttons ? options.buttons.split(",").map((btn) => btn.trim()) : DEFAULT_BUTTONS.split(",").map((btn) => btn.trim());
+  const mediaLibButtonIndex = buttons.findIndex((btn) => btn === STRAPI_MEDIA_BUTTON_NAME);
   if (mediaLibButtonIndex !== -1) {
     buttons[mediaLibButtonIndex] = mediaLibButton;
   }
@@ -259,7 +346,7 @@ const JoditInput = ({
     return acc;
   }, {}) : {};
   const webpEnabled = options.webp !== "" ? options.webp?.split(",") : [];
-  const handleFileUpload = react.useCallback(async (file) => {
+  const handleFileUpload = useCallback(async (file) => {
     try {
       const formData = new FormData();
       formData.append("files", file);
@@ -279,7 +366,7 @@ const JoditInput = ({
       return null;
     }
   }, [post]);
-  const config = react.useMemo(() => ({
+  const config = useMemo(() => ({
     readonly: disabled || options.readonly || false,
     height,
     toolbar: showToolbar,
@@ -306,7 +393,11 @@ const JoditInput = ({
     controls: {
       font: {
         list: Object.keys(fonts).length > 0 ? fonts : {}
-      }
+      },
+      copytext: copyTextButton,
+      // COPYTEXT: регистрация кнопки
+      linkbtn: insertLinkButton
+      // LINKBTN: регистрация кнопки
     },
     // Event handlers
     events: {
@@ -315,6 +406,28 @@ const JoditInput = ({
       },
       beforeOpen: () => {
         console.log("📎 Jodit: Editor opened");
+      },
+      // Added Ctrl+Shift+V paste behavior
+      keydown: (e) => {
+        if (e.ctrlKey && e.shiftKey && (e.key === "V" || e.key === "v")) {
+          e.preventDefault();
+          e.stopPropagation();
+          navigator.clipboard.readText().then((text) => {
+            const jodit = editorRef.current;
+            if (!jodit) return;
+            const clean = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n\n/g, "</p><p>").replace(/\n/g, "<br>");
+            jodit.selection.insertHTML(`<p>${clean}</p>`);
+            const newContent = jodit.value || "";
+            onChange({
+              target: {
+                name,
+                value: newContent.split(cursorPlaceholderContent).join("").trim()
+              }
+            });
+          }).catch(() => {
+            console.warn("Jodit: нет доступа к Clipboard API");
+          });
+        }
       },
       // Handle paste events for images, videos, and audio
       paste: async (e) => {
@@ -396,8 +509,11 @@ const JoditInput = ({
   const displayLabel = label || fieldSchema?.displayName || metadatas?.label || formatMessage(intlLabel);
   const displayDescription = description || fieldSchema?.description || metadatas?.description;
   const displayHint = hint;
-  return /* @__PURE__ */ jsxRuntime.jsxs(
-    designSystem.Field.Root,
+  const isSourceMode = (jodit) => {
+    return jodit?.getMode?.() === 2;
+  };
+  return /* @__PURE__ */ jsxs(
+    Field.Root,
     {
       name,
       id: name,
@@ -406,8 +522,8 @@ const JoditInput = ({
       hint: displayHint,
       style: { position: "relative" },
       children: [
-        /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: displayLabel }),
-        /* @__PURE__ */ jsxRuntime.jsx(JoditContainer, { children: /* @__PURE__ */ jsxRuntime.jsx(
+        /* @__PURE__ */ jsx(Field.Label, { children: displayLabel }),
+        /* @__PURE__ */ jsx(JoditContainer, { children: /* @__PURE__ */ jsx(
           JoditEditor,
           {
             value: initialValue,
@@ -425,14 +541,18 @@ const JoditInput = ({
             onChange: (newContent) => {
               console.log("📎 Jodit: Content changed", newContent?.length || 0, "characters");
               const jodit = editorRef.current;
+              if (isSourceMode(jodit)) {
+                onChange({ target: { name, value: newContent } });
+                return;
+              }
               jodit?.selection.save();
               onChange({ target: { name, value: newContent.split(cursorPlaceholderContent).join("").trim() } });
             }
           }
         ) }),
-        displayDescription ? /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Hint, { children: displayDescription }) : null,
-        error ? /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Error, { children: error }) : null,
-        /* @__PURE__ */ jsxRuntime.jsx(
+        displayDescription ? /* @__PURE__ */ jsx(Field.Hint, { children: displayDescription }) : null,
+        error ? /* @__PURE__ */ jsx(Field.Error, { children: error }) : null,
+        /* @__PURE__ */ jsx(
           MediaLib,
           {
             isOpen: mediaLibVisible,
@@ -440,7 +560,7 @@ const JoditInput = ({
             onToggle: toggleMediaLib
           }
         ),
-        isLoading ? /* @__PURE__ */ jsxRuntime.jsx(
+        isLoading ? /* @__PURE__ */ jsx(
           "div",
           {
             style: {
@@ -451,7 +571,7 @@ const JoditInput = ({
               height: "100%",
               background: "rgba(255,255,255,0.5)"
             },
-            children: /* @__PURE__ */ jsxRuntime.jsx(
+            children: /* @__PURE__ */ jsx(
               "div",
               {
                 style: {
@@ -465,7 +585,7 @@ const JoditInput = ({
                   justifyContent: "center",
                   background: "rgba(255,255,255,0.5)"
                 },
-                children: /* @__PURE__ */ jsxRuntime.jsx(designSystem.Loader, {})
+                children: /* @__PURE__ */ jsx(Loader, {})
               }
             )
           }
@@ -474,8 +594,10 @@ const JoditInput = ({
     }
   );
 };
-const JoditInput_default = react.memo(JoditInput, (prevProps, nextProps) => {
+const JoditInput_default = memo(JoditInput, (prevProps, nextProps) => {
   return prevProps.name === nextProps.name && prevProps.required === nextProps.required && prevProps.disabled === nextProps.disabled && prevProps.error === nextProps.error;
 });
-exports.default = JoditInput_default;
-//# sourceMappingURL=JoditInput-DZz92bBr.js.map
+export {
+  JoditInput_default as default
+};
+//# sourceMappingURL=JoditInput-BO8D4Ltc.mjs.map

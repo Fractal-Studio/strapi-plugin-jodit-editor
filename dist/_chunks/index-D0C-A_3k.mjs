@@ -38,7 +38,7 @@ const IconBox = styled(Flex)`
 `;
 const PluginIcon = () => /* @__PURE__ */ jsx(IconBox, { justifyContent: "center", alignItems: "center", hasRadius: true, children: /* @__PURE__ */ jsx(Pencil, {}) });
 const STRAPI_MEDIA_BUTTON_NAME = "strapiMedia";
-const DEFAULT_BUTTONS = `source, bold, italic, underline, strikethrough, superscript, subscript, eraser, font, fontsize, brush, paragraph, classSpan, |, ul, ol, indent, outdent, left, center, right, justify, |, link, unlink, ${STRAPI_MEDIA_BUTTON_NAME}, image, file, video, table, hr, symbols, lineHeight, |, copy, cut, paste, copyformat, selectall, undo, redo, fullsize, print, preview, find, spellcheck, about`;
+const DEFAULT_BUTTONS = `source, bold, italic, underline, strikethrough, superscript, subscript, eraser, font, fontsize, brush, paragraph, classSpan, |, ul, ol, indent, outdent, left, center, right, justify, |, link, unlink, ${STRAPI_MEDIA_BUTTON_NAME}, image, file, video, table, hr, symbols, lineHeight, |, copy, cut, paste, copyformat, selectall, undo, redo, fullsize, print, preview, find, spellcheck, about, copytext, link`;
 const index = {
   register(app) {
     console.log("🎯 Jodit Editor plugin - ADMIN REGISTER function called!");
@@ -64,7 +64,7 @@ const index = {
         defaultMessage: "Rich text editor powered by Jodit with advanced formatting options"
       },
       components: {
-        Input: async () => import("./JoditInput-DHIkaIIw.mjs").then((module) => ({ default: module.default }))
+        Input: async () => import("./JoditInput-BO8D4Ltc.mjs").then((module) => ({ default: module.default }))
       },
       options: {
         advanced: [
@@ -195,4 +195,4 @@ export {
   STRAPI_MEDIA_BUTTON_NAME as S,
   index as i
 };
-//# sourceMappingURL=index-BtjzmNTq.mjs.map
+//# sourceMappingURL=index-D0C-A_3k.mjs.map
