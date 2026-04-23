@@ -196,3 +196,4 @@ const index = {
 exports.DEFAULT_BUTTONS = DEFAULT_BUTTONS;
 exports.STRAPI_MEDIA_BUTTON_NAME = STRAPI_MEDIA_BUTTON_NAME;
 exports.index = index;
+//# sourceMappingURL=index-BP7QEoSK.js.map
