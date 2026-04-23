@@ -99,9 +99,8 @@ public/uploads/*
 # Build
 ############################
 
-dist
+#dist
 build
-
 
 ############################
 # Node.js

@@ -8,6 +8,12 @@ import React, {
 
 import styled from 'styled-components';
 
+declare module 'styled-components' {
+  export interface DefaultTheme {
+    name: 'light' | 'dark';
+  }
+}
+
 import JoditEditorImport from 'jodit-react';
 
 // Handle ESM/CJS interop - jodit-react might export { default: Component } when bundled
@@ -75,6 +81,16 @@ const JoditContainer = styled.div`
     height: 19px;
     width: 19px;
   }
+
+  /*.jodit-toolbar-button_strapiMedia svg {
+    fill: ${({ theme }) => theme.colors.neutral800};
+  }*/
+
+  .jodit-wysiwyg {
+    background: ${({ theme }) => theme.name === 'dark' ? '#4a4a6a' : theme.colors.neutral0};
+    color: ${({ theme }) => theme.colors.neutral800};
+  }
+
 `;
 
 // Utility function to prefix URLs (similar to CKEditor implementation)
@@ -253,6 +269,28 @@ const JoditInput: React.FC<JoditInputProps> = ({
       toggleMediaLib();
     }
   }
+
+  /*const mediaLibButton = {
+    name: 'strapiMedia',
+    icon: `
+    <svg viewBox="0 0 32 32" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+      <path d="M27 5H9a2 2 0 0 0-2 2v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2v-2h2a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2m-5.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3M23 25H5V11h2v10a2 2 0 0 0 2 2h14zm4-4H9v-4.5l4.5-4.5 6.208 6.208a1 1 0 0 0 1.413 0L24.33 15 27 17.67z"/>
+    </svg>
+  `,
+    tooltip: 'Strapi Media Library',
+    exec: function (jodit: IJodit) {
+      console.log(`📎 Jodit: Open Strapi media library`);
+      jodit.selection.insertHTML(cursorPlaceholderContent);
+      const newContent = jodit.value;
+      onChange({
+        target: {
+          name,
+          value: newContent.split(cursorPlaceholderContent).join('').trim()
+        }
+      });
+      toggleMediaLib();
+    }
+  };*/
 
   const { formatMessage } = useIntl();
   const { post } = useFetchClient();
