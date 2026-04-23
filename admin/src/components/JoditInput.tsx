@@ -341,7 +341,9 @@ const JoditInput: React.FC<JoditInputProps> = ({
       content.style.display = 'flex';
       content.style.flexDirection = 'column';
       content.style.gap = '10px';
+      content.style.padding = '16px';
       content.style.minWidth = '300px';
+      content.style.color = '#636363';
 
       const textInput = document.createElement('input');
       textInput.placeholder = 'Текст кнопки';
@@ -578,6 +580,38 @@ const JoditInput: React.FC<JoditInputProps> = ({
 
       beforeOpen: () => {
         console.log('📎 Jodit: Editor opened');
+      },
+
+      // Added Ctrl+Shift+V paste behavior
+      keydown: (e: KeyboardEvent) => {
+        if (e.ctrlKey && e.shiftKey && (e.key === 'V' || e.key === 'v')) {
+          e.preventDefault();
+          e.stopPropagation();
+
+          navigator.clipboard.readText().then((text) => {
+            const jodit = editorRef.current;
+            if (!jodit) return;
+
+            const clean = text
+              .replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/\n\n/g, '</p><p>')
+              .replace(/\n/g, '<br>');
+
+            jodit.selection.insertHTML(`<p>${clean}</p>`);
+
+            const newContent = jodit.value || '';
+            onChange({
+              target: {
+                name,
+                value: newContent.split(cursorPlaceholderContent).join('').trim(),
+              },
+            });
+          }).catch(() => {
+            console.warn('Jodit: нет доступа к Clipboard API');
+          });
+        }
       },
 
       // Handle paste events for images, videos, and audio
