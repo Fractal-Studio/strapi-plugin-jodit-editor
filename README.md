@@ -40,6 +40,30 @@ export default ({ env }) => ({
 });
 ```
 
+### AI Clean Button Configuration
+
+You can add one or more AI cleanup buttons through the plugin configuration. Requests are proxied through the Strapi server, so `apiKey` is not exposed to the admin frontend.
+
+```typescript
+export default ({ env }) => ({
+  'jodit-editor': {
+    enabled: true,
+    resolve: 'src/plugins/strapi-plugin-jodit-editor',
+    config: {
+      aiButtons: {
+        aiClean: {
+          label: 'AI clean',
+          apiUrl: env('AI_API_URL'), // e.g. https://api.openai.com/v1
+          apiKey: env('AI_API_KEY'),
+          apiModel: env('AI_API_MODEL', 'gpt-4o-mini'),
+          prompt: 'Clean this HTML from useless tags and attributes. Return only valid HTML.',
+        },
+      },
+    },
+  },
+});
+```
+
 ## Custom Development Locally
 
 To develop or customize the plugin locally within your Strapi project, follow these steps:

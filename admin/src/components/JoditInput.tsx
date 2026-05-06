@@ -3,6 +3,7 @@ import React, {
   useRef,
   useMemo,
   useCallback,
+  useEffect,
   memo,
 } from 'react';
 
@@ -109,6 +110,89 @@ const JoditContainer = styled.div`
 
 `;
 
+const AiModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(33, 33, 52, 0.48);
+`;
+
+const AiModalPanel = styled.div`
+  width: min(960px, 100%);
+  max-height: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.neutral0};
+  color: ${({ theme }) => theme.colors.neutral800};
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+`;
+
+const AiModalTitle = styled.h2`
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+`;
+
+const AiModalText = styled.div`
+  font-size: 14px;
+  line-height: 1.5;
+`;
+
+const AiModalActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+
+const AiModalButton = styled.button`
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid ${({ theme }) => theme.colors.neutral300};
+  border-radius: 4px;
+  background: ${({ theme }) => theme.colors.neutral0};
+  color: ${({ theme }) => theme.colors.neutral800};
+  cursor: pointer;
+  font-weight: 600;
+
+  &[data-variant='primary'] {
+    border-color: #4945ff;
+    background: #4945ff;
+    color: #ffffff;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+`;
+
+const AiEditorShell = styled.div`
+  min-height: 360px;
+  border: 1px solid ${({ theme }) => theme.colors.neutral200};
+  border-radius: 4px;
+  overflow: hidden;
+`;
+
+const AiEditorFallback = styled.textarea`
+  width: 100%;
+  min-height: 360px;
+  padding: 12px;
+  border: 0;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: ${({ theme }) => theme.colors.neutral800};
+  background: ${({ theme }) => theme.colors.neutral0};
+`;
+
 // Utility function to prefix URLs (similar to CKEditor implementation)
 const prefixFileUrlWithBackendUrl = (url: string) => {
   return url.startsWith('/') ? `${window.location.origin}${url}` : url;
@@ -189,6 +273,89 @@ const stripVisibleCellSelectionFromHtml = (content: string) => {
   template.innerHTML = content;
   removeVisibleCellSelection(template.content);
   return template.innerHTML;
+};
+
+type AiButtonConfig = {
+  name: string;
+  label: string;
+};
+
+type AiModalState = {
+  isOpen: boolean;
+  status: 'loading' | 'review' | 'error';
+  buttonName?: string;
+  label?: string;
+  content: string;
+  error?: string;
+};
+
+const AceHtmlEditor = ({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const aceRef = useRef<any>(null);
+  const [aceReady, setAceReady] = useState(false);
+
+  useEffect(() => {
+    const initAce = () => {
+      const ace = (window as any).ace;
+      if (!containerRef.current || !ace || aceRef.current) {
+        return;
+      }
+
+      const editor = ace.edit(containerRef.current);
+      aceRef.current = editor;
+      editor.setTheme('ace/theme/idle_fingers');
+      editor.session.setMode('ace/mode/html');
+      editor.session.setUseWrapMode(true);
+      editor.setValue(value || '', -1);
+      editor.on('change', () => onChange(editor.getValue()));
+      setAceReady(true);
+    };
+
+    initAce();
+
+    if (!(window as any).ace) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.2/ace.js';
+      script.async = true;
+      script.onload = initAce;
+      document.head.appendChild(script);
+
+      return () => {
+        aceRef.current?.destroy?.();
+        aceRef.current = null;
+        script.remove();
+      };
+    }
+
+    return () => {
+      aceRef.current?.destroy?.();
+      aceRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (aceRef.current && aceRef.current.getValue() !== value) {
+      aceRef.current.setValue(value || '', -1);
+    }
+  }, [value]);
+
+  return (
+    <AiEditorShell>
+      <div
+        ref={containerRef}
+        style={{ display: aceReady ? 'block' : 'none', width: '100%', minHeight: 360 }}
+      />
+      {!aceReady ? (
+        <AiEditorFallback value={value} onChange={(event) => onChange(event.target.value)} />
+      ) : null}
+    </AiEditorShell>
+  );
 };
 
 // IMAGE_SCHEMA_FIELDS from Strapi's official blocks implementation
@@ -483,12 +650,18 @@ const JoditInput: React.FC<JoditInputProps> = ({
   };
 
   const { formatMessage } = useIntl();
-  const { post } = useFetchClient();
+  const { get, post } = useFetchClient();
 
   const editorRef = useRef<IJodit | null>(null);
 
   // Media library state (following CKEditor pattern)
   const [mediaLibVisible, setMediaLibVisible] = useState(false);
+  const [aiButtons, setAiButtons] = useState<AiButtonConfig[]>([]);
+  const [aiModal, setAiModal] = useState<AiModalState>({
+    isOpen: false,
+    status: 'loading',
+    content: '',
+  });
 
   const [initialValue] = useState(value || '');
 
@@ -497,6 +670,92 @@ const JoditInput: React.FC<JoditInputProps> = ({
   const toggleMediaLib = useCallback(() => {
     setMediaLibVisible(prev => !prev);
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    get('/jodit-editor/ai-buttons')
+      .then((response) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setAiButtons(Array.isArray(response.data?.buttons) ? response.data.buttons : []);
+      })
+      .catch((error) => {
+        console.warn('Jodit: failed to load AI buttons configuration', error);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [get]);
+
+  const closeAiModal = useCallback(() => {
+    setAiModal({
+      isOpen: false,
+      status: 'loading',
+      content: '',
+    });
+  }, []);
+
+  const runAiClean = useCallback(async (button: AiButtonConfig) => {
+    const jodit = editorRef.current;
+    const content = stripVisibleCellSelectionFromHtml(jodit?.value || value || '');
+
+    setAiModal({
+      isOpen: true,
+      status: 'loading',
+      buttonName: button.name,
+      label: button.label,
+      content: '',
+    });
+
+    try {
+      const response = await post('/jodit-editor/ai-clean', {
+        button: button.name,
+        content,
+      });
+      const cleanedContent = response.data?.content;
+
+      if (!cleanedContent || typeof cleanedContent !== 'string') {
+        throw new Error('AI response does not contain content');
+      }
+
+      setAiModal({
+        isOpen: true,
+        status: 'review',
+        buttonName: button.name,
+        label: button.label,
+        content: cleanedContent,
+      });
+    } catch (error: any) {
+      setAiModal({
+        isOpen: true,
+        status: 'error',
+        buttonName: button.name,
+        label: button.label,
+        content: '',
+        error: error?.response?.data?.error?.message || error?.message || 'AI clean failed',
+      });
+    }
+  }, [post, value]);
+
+  const acceptAiContent = useCallback(() => {
+    const jodit = editorRef.current;
+
+    if (jodit && aiModal.content) {
+      jodit.value = aiModal.content;
+    }
+
+    onChange({
+      target: {
+        name,
+        value: aiModal.content,
+      },
+    });
+    closeAiModal();
+  }, [aiModal.content, closeAiModal, name, onChange]);
 
   // Utility function to convert File to media object with base64 data or upload to media library
   const fileToMediaObject = async (
@@ -562,6 +821,20 @@ const JoditInput: React.FC<JoditInputProps> = ({
   if (mediaLibButtonIndex !== -1) {
     buttons[mediaLibButtonIndex] = mediaLibButton;
   }
+  const aiButtonControls = aiButtons.reduce((acc, button) => {
+    acc[button.name] = {
+      name: button.name,
+      text: button.label,
+      tooltip: button.label,
+      exec: () => runAiClean(button),
+    };
+
+    if (!buttons.some(item => item === button.name || item?.name === button.name)) {
+      buttons.push(button.name);
+    }
+
+    return acc;
+  }, {} as Record<string, any>);
   const removeButtons = options.removeButtons
     ? options.removeButtons.split(',').map(btn => btn.trim())
     : [];
@@ -638,6 +911,7 @@ const JoditInput: React.FC<JoditInputProps> = ({
       },
       copytext: copyTextButton, // COPYTEXT: регистрация кнопки
       linkbtn: insertLinkButton, // LINKBTN: регистрация кнопки
+      ...aiButtonControls,
     },
 
     // Event handlers
@@ -812,7 +1086,9 @@ const JoditInput: React.FC<JoditInputProps> = ({
     placeholder,
     formatMessage,
     toggleMediaLib,
-    handleFileUpload
+    handleFileUpload,
+    aiButtons,
+    runAiClean
   ]);
 
   // Get the display label
@@ -883,6 +1159,46 @@ const JoditInput: React.FC<JoditInputProps> = ({
         ) : null
       }
       {error ? <Field.Error>{error}</Field.Error> : null}
+
+      {aiModal.isOpen ? (
+        <AiModalOverlay>
+          <AiModalPanel>
+            <AiModalTitle>{aiModal.label || 'AI clean'}</AiModalTitle>
+
+            {aiModal.status === 'loading' ? (
+              <AiModalText>Ожидание ответа AI...</AiModalText>
+            ) : null}
+
+            {aiModal.status === 'error' ? (
+              <>
+                <AiModalText>{aiModal.error || 'Ошибка при выполнении AI clean'}</AiModalText>
+                <AiModalActions>
+                  <AiModalButton type="button" onClick={closeAiModal}>
+                    Закрыть
+                  </AiModalButton>
+                </AiModalActions>
+              </>
+            ) : null}
+
+            {aiModal.status === 'review' ? (
+              <>
+                <AceHtmlEditor
+                  value={aiModal.content}
+                  onChange={(content) => setAiModal(prev => ({ ...prev, content }))}
+                />
+                <AiModalActions>
+                  <AiModalButton type="button" onClick={closeAiModal}>
+                    Отмена
+                  </AiModalButton>
+                  <AiModalButton type="button" data-variant="primary" onClick={acceptAiContent}>
+                    Принять
+                  </AiModalButton>
+                </AiModalActions>
+              </>
+            ) : null}
+          </AiModalPanel>
+        </AiModalOverlay>
+      ) : null}
 
       {/* Media Library Modal */}
       <MediaLib
