@@ -546,6 +546,8 @@ const JoditInput: React.FC<JoditInputProps> = ({
     toolbar: showToolbar,
     adaptive: false,            // Отключает общую адаптивность
     toolbarAdaptive: false,     // Запрещает прятать кнопки в "три точки"
+    addNewLine: false,          // Отключает плавающую кнопку вставки строки около таблиц/медиа
+    addNewLineOnDBLClick: false,
     width: '100%',
     placeholder: formatMessage({
       id: placeholder || 'jodit-editor.placeholder',
