@@ -33,6 +33,7 @@ import { DEFAULT_BUTTONS, STRAPI_MEDIA_BUTTON_NAME } from './config';
 
 const cursorPlaceholder = `current_cursor_placeholder`;
 const cursorPlaceholderContent = `<${cursorPlaceholder}></${cursorPlaceholder}>`;
+const visibleSelectedCellClass = 'jodit-cell-selection-visible';
 
 const JoditContainer = styled.div`
   h1, h2, h3, h4, h5, h6 {
@@ -91,6 +92,12 @@ const JoditContainer = styled.div`
     color: ${({ theme }) => theme.colors.neutral800};
   }
 
+  .jodit-wysiwyg td.${visibleSelectedCellClass},
+  .jodit-wysiwyg th.${visibleSelectedCellClass} {
+    background-color: rgba(30, 136, 229, 0.26) !important;
+    box-shadow: inset 0 0 0 2px #1e88e5 !important;
+  }
+
   /* Визуализация кастомного класса в редакторе */
   .text-to-copy, .jodit-btn {
     background-color: #e3f2fd;
@@ -130,6 +137,58 @@ const generateMediaHtml = (file: { url: string; alt?: string; mime: string; name
     return `
 <a href="${url}" download="${name}" target="_blank">${alt || name}</a>`;
   }
+};
+
+const removeVisibleCellSelection = (root?: ParentNode | null) => {
+  root
+    ?.querySelectorAll?.(`.${visibleSelectedCellClass}`)
+    .forEach(cell => cell.classList.remove(visibleSelectedCellClass));
+};
+
+const getTableCell = (target: EventTarget | null): HTMLTableCellElement | null => {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+
+  return target.closest('td, th') as HTMLTableCellElement | null;
+};
+
+const markVisibleCellRange = (
+  table: HTMLTableElement,
+  from: HTMLTableCellElement,
+  to: HTMLTableCellElement
+) => {
+  removeVisibleCellSelection(table);
+
+  const fromRow = (from.parentElement as HTMLTableRowElement | null)?.rowIndex ?? 0;
+  const toRow = (to.parentElement as HTMLTableRowElement | null)?.rowIndex ?? fromRow;
+  const startRow = Math.min(fromRow, toRow);
+  const endRow = Math.max(fromRow, toRow);
+  const startCell = Math.min(from.cellIndex, to.cellIndex);
+  const endCell = Math.max(from.cellIndex, to.cellIndex);
+
+  Array.from(table.rows).forEach(row => {
+    if (row.rowIndex < startRow || row.rowIndex > endRow) {
+      return;
+    }
+
+    Array.from(row.cells).forEach(cell => {
+      if (cell.cellIndex >= startCell && cell.cellIndex <= endCell) {
+        cell.classList.add(visibleSelectedCellClass);
+      }
+    });
+  });
+};
+
+const stripVisibleCellSelectionFromHtml = (content: string) => {
+  if (!content || typeof document === 'undefined') {
+    return content;
+  }
+
+  const template = document.createElement('template');
+  template.innerHTML = content;
+  removeVisibleCellSelection(template.content);
+  return template.innerHTML;
 };
 
 // IMAGE_SCHEMA_FIELDS from Strapi's official blocks implementation
@@ -548,6 +607,7 @@ const JoditInput: React.FC<JoditInputProps> = ({
     toolbarAdaptive: false,     // Запрещает прятать кнопки в "три точки"
     addNewLine: false,          // Отключает плавающую кнопку вставки строки около таблиц/медиа
     addNewLineOnDBLClick: false,
+    tableAllowCellSelection: true,
     width: '100%',
     placeholder: formatMessage({
       id: placeholder || 'jodit-editor.placeholder',
@@ -566,6 +626,12 @@ const JoditInput: React.FC<JoditInputProps> = ({
     buttons,
     removeButtons: removeButtons,
 
+    table: {
+      splitBlockOnInsertTable: true,
+      selectionCellStyle: 'background-color: rgba(30, 136, 229, 0.22) !important; border: 1px double #1e88e5 !important;',
+      useExtraClassesOptions: false,
+    },
+
     controls: {
       font: {
         list: Object.keys(fonts).length > 0 ? fonts : {},
@@ -578,6 +644,55 @@ const JoditInput: React.FC<JoditInputProps> = ({
     events: {
       afterInit: function (jodit: any) {
         console.log('📎 Jodit: Editor initialized, storing instance:', jodit);
+
+        let selectionStartCell: HTMLTableCellElement | null = null;
+
+        const onCellSelectionStart = (event: MouseEvent) => {
+          const cell = getTableCell(event.target);
+          const table = cell?.closest('table') as HTMLTableElement | null;
+
+          if (!cell || !table || !jodit.editor.contains(table)) {
+            selectionStartCell = null;
+            removeVisibleCellSelection(jodit.editor);
+            return;
+          }
+
+          selectionStartCell = cell;
+          markVisibleCellRange(table, cell, cell);
+        };
+
+        const onCellSelectionMove = (event: MouseEvent) => {
+          if (!selectionStartCell) {
+            return;
+          }
+
+          const cell = getTableCell(event.target);
+          const table = selectionStartCell.closest('table') as HTMLTableElement | null;
+
+          if (!cell || !table || cell.closest('table') !== table) {
+            return;
+          }
+
+          markVisibleCellRange(table, selectionStartCell, cell);
+        };
+
+        const onCellSelectionEnd = () => {
+          selectionStartCell = null;
+        };
+
+        const onEditorMouseDown = (event: MouseEvent) => {
+          if (!getTableCell(event.target)) {
+            removeVisibleCellSelection(jodit.editor);
+          }
+        };
+
+        jodit.e
+          .on(jodit.editor, 'mousedown.visible-cell-selection', onCellSelectionStart)
+          .on(jodit.editor, 'mousemove.visible-cell-selection', onCellSelectionMove)
+          .on(jodit.editor, 'mouseup.visible-cell-selection', onCellSelectionEnd)
+          .on(jodit.editor, 'mouseleave.visible-cell-selection', onCellSelectionEnd)
+          .on(jodit.editor, 'mousedown.visible-cell-selection-clear', onEditorMouseDown)
+          .on('beforeCommand.visible-cell-selection', () => removeVisibleCellSelection(jodit.editor));
       },
 
       beforeOpen: () => {
@@ -740,8 +855,10 @@ const JoditInput: React.FC<JoditInputProps> = ({
           onBlur={(newContent: string) => {
             console.log('📎 Jodit: Content changed', newContent?.length || 0, 'characters');
             const jodit = editorRef.current;
+            removeVisibleCellSelection(jodit?.editor);
             jodit?.selection.save();
-            onChange({ target: { name, value: newContent.split(cursorPlaceholderContent).join('').trim() } });
+            const cleanContent = stripVisibleCellSelectionFromHtml(newContent);
+            onChange({ target: { name, value: cleanContent.split(cursorPlaceholderContent).join('').trim() } });
           }}
           onChange={(newContent: string) => {
             console.log('📎 Jodit: Content changed', newContent?.length || 0, 'characters');
@@ -754,7 +871,8 @@ const JoditInput: React.FC<JoditInputProps> = ({
             }
 
             jodit?.selection.save();
-            onChange({ target: { name, value: newContent.split(cursorPlaceholderContent).join('').trim() } });
+            const cleanContent = stripVisibleCellSelectionFromHtml(newContent);
+            onChange({ target: { name, value: cleanContent.split(cursorPlaceholderContent).join('').trim() } });
           }}
         />
       </JoditContainer>

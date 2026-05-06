@@ -1,4 +1,4 @@
-import { i } from "../_chunks/index-V5XOfpQS.mjs";
+import { i } from "../_chunks/index-CoyfkpMw.mjs";
 import "jodit/es2015/jodit.css";
 export {
   i as default
