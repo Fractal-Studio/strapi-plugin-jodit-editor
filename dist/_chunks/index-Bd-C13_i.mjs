@@ -1,12 +1,9 @@
-"use strict";
-const react = require("react");
-const jsxRuntime = require("react/jsx-runtime");
-const icons = require("@strapi/icons");
-const designSystem = require("@strapi/design-system");
-const styled = require("styled-components");
-require("jodit/es2015/jodit.css");
-const _interopDefault = (e) => e && e.__esModule ? e : { default: e };
-const styled__default = /* @__PURE__ */ _interopDefault(styled);
+import { useRef, useEffect } from "react";
+import { jsx } from "react/jsx-runtime";
+import { Pencil } from "@strapi/icons";
+import { Flex } from "@strapi/design-system";
+import styled from "styled-components";
+import "jodit/es2015/jodit.css";
 const __variableDynamicImportRuntimeHelper = (glob, path, segs) => {
   const v = glob[path];
   if (v) {
@@ -25,13 +22,13 @@ const __variableDynamicImportRuntimeHelper = (glob, path, segs) => {
 };
 const PLUGIN_ID = "jodit-editor";
 const Initializer = ({ setPlugin }) => {
-  const ref = react.useRef(setPlugin);
-  react.useEffect(() => {
+  const ref = useRef(setPlugin);
+  useEffect(() => {
     ref.current(PLUGIN_ID);
   }, []);
   return null;
 };
-const IconBox = styled__default.default(designSystem.Flex)`
+const IconBox = styled(Flex)`
   padding: 6px;
   background-color: #f0f0ff; /* primary100 */
   border: 1px solid #d9d8ff; /* primary200 */
@@ -39,7 +36,7 @@ const IconBox = styled__default.default(designSystem.Flex)`
     fill: #4945ff; /* primary600 */
   }
 `;
-const PluginIcon = () => /* @__PURE__ */ jsxRuntime.jsx(IconBox, { justifyContent: "center", alignItems: "center", hasRadius: true, children: /* @__PURE__ */ jsxRuntime.jsx(icons.Pencil, {}) });
+const PluginIcon = () => /* @__PURE__ */ jsx(IconBox, { justifyContent: "center", alignItems: "center", hasRadius: true, children: /* @__PURE__ */ jsx(Pencil, {}) });
 const STRAPI_MEDIA_BUTTON_NAME = "strapiMedia";
 const DEFAULT_BUTTONS = `source, bold, italic, underline, strikethrough, superscript, subscript, eraser, font, fontsize, brush, paragraph, classSpan, |, ul, ol, indent, outdent, left, center, right, justify, |, link, unlink, ${STRAPI_MEDIA_BUTTON_NAME}, image, file, video, table, hr, symbols, lineHeight, |, copy, cut, paste, copyformat, selectall, undo, redo, fullsize, print, preview, find, spellcheck, about, copytext, link`;
 const index = {
@@ -67,7 +64,7 @@ const index = {
         defaultMessage: "Rich text editor powered by Jodit with advanced formatting options"
       },
       components: {
-        Input: async () => Promise.resolve().then(() => require("./JoditInput-CiUsk6jk.js")).then((module2) => ({ default: module2.default }))
+        Input: async () => import("./JoditInput-DiIGNxRv.mjs").then((module) => ({ default: module.default }))
       },
       options: {
         advanced: [
@@ -184,7 +181,7 @@ const index = {
     return Promise.all(
       locales.map(async (locale) => {
         try {
-          const { default: data } = await __variableDynamicImportRuntimeHelper(/* @__PURE__ */ Object.assign({ "./translations/en.json": () => Promise.resolve().then(() => require("./en-DQ5rLjJ6.js")) }), `./translations/${locale}.json`, 3);
+          const { default: data } = await __variableDynamicImportRuntimeHelper(/* @__PURE__ */ Object.assign({ "./translations/en.json": () => import("./en-eJbSYHI0.mjs") }), `./translations/${locale}.json`, 3);
           return { data, locale };
         } catch {
           return { data: {}, locale };
@@ -193,6 +190,9 @@ const index = {
     );
   }
 };
-exports.DEFAULT_BUTTONS = DEFAULT_BUTTONS;
-exports.STRAPI_MEDIA_BUTTON_NAME = STRAPI_MEDIA_BUTTON_NAME;
-exports.index = index;
+export {
+  DEFAULT_BUTTONS as D,
+  STRAPI_MEDIA_BUTTON_NAME as S,
+  index as i
+};
+//# sourceMappingURL=index-Bd-C13_i.mjs.map

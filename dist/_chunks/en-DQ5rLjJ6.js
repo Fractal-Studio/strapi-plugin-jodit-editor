@@ -15,3 +15,4 @@ const en = {
   "jodit-editor.plugin.name": "Jodit Editor"
 };
 exports.default = en;
+//# sourceMappingURL=en-DQ5rLjJ6.js.map

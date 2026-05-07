@@ -253,3 +253,4 @@ const index = {
   middlewares: _default$3
 };
 module.exports = index;
+//# sourceMappingURL=index.js.map
