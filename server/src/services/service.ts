@@ -9,6 +9,8 @@ type AiButtonConfig = {
   promt?: string;
 };
 
+const LOG_RESPONSE_LIMIT = 8000;
+
 const getAiButtonsConfig = (strapi: Core.Strapi): Record<string, AiButtonConfig> => {
   const config = strapi.config.get('plugin::jodit-editor', {}) || {};
 
@@ -32,6 +34,20 @@ const stripMarkdownFence = (content: string) => {
     .replace(/^```(?:html)?\s*/i, '')
     .replace(/\s*```$/i, '')
     .trim();
+};
+
+const safeStringify = (value: unknown) => {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+};
+
+const truncateLogValue = (value: string) => {
+  return value.length > LOG_RESPONSE_LIMIT
+    ? `${value.slice(0, LOG_RESPONSE_LIMIT)}... [truncated ${value.length - LOG_RESPONSE_LIMIT} chars]`
+    : value;
 };
 
 const service = ({ strapi }: { strapi: Core.Strapi }) => ({
@@ -93,12 +109,30 @@ const service = ({ strapi }: { strapi: Core.Strapi }) => ({
         data?.error?.message ||
         data?.message ||
         `AI API request failed with status ${response.status}`;
+      strapi.log.error(
+        `Jodit AI clean: API request failed ${truncateLogValue(safeStringify({
+          buttonName,
+          apiModel,
+          responseStatus: response.status,
+          responseKeys: data && typeof data === 'object' ? Object.keys(data) : [],
+          responseBody: data,
+        }))}`
+      );
       throw new Error(message);
     }
 
     const cleanedContent = data?.choices?.[0]?.message?.content;
 
     if (!cleanedContent || typeof cleanedContent !== 'string') {
+      strapi.log.error(
+        `Jodit AI clean: response does not contain choices[0].message.content ${truncateLogValue(safeStringify({
+          buttonName,
+          apiModel,
+          responseStatus: response.status,
+          responseKeys: data && typeof data === 'object' ? Object.keys(data) : [],
+          responseBody: data,
+        }))}`
+      );
       throw new Error('AI API response does not contain cleaned content');
     }
 

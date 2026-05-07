@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+const LOG_RESPONSE_LIMIT = 8000;
 const getAiButtonsConfig = (strapi) => {
     var _a;
     const config = strapi.config.get('plugin::jodit-editor', {}) || {};
@@ -15,6 +16,19 @@ const stripMarkdownFence = (content) => {
         .replace(/^```(?:html)?\s*/i, '')
         .replace(/\s*```$/i, '')
         .trim();
+};
+const safeStringify = (value) => {
+    try {
+        return JSON.stringify(value, null, 2);
+    }
+    catch {
+        return String(value);
+    }
+};
+const truncateLogValue = (value) => {
+    return value.length > LOG_RESPONSE_LIMIT
+        ? `${value.slice(0, LOG_RESPONSE_LIMIT)}... [truncated ${value.length - LOG_RESPONSE_LIMIT} chars]`
+        : value;
 };
 const service = ({ strapi }) => ({
     getWelcomeMessage() {
@@ -66,10 +80,24 @@ const service = ({ strapi }) => ({
             const message = ((_a = data === null || data === void 0 ? void 0 : data.error) === null || _a === void 0 ? void 0 : _a.message) ||
                 (data === null || data === void 0 ? void 0 : data.message) ||
                 `AI API request failed with status ${response.status}`;
+            strapi.log.error(`Jodit AI clean: API request failed ${truncateLogValue(safeStringify({
+                buttonName,
+                apiModel,
+                responseStatus: response.status,
+                responseKeys: data && typeof data === 'object' ? Object.keys(data) : [],
+                responseBody: data,
+            }))}`);
             throw new Error(message);
         }
         const cleanedContent = (_d = (_c = (_b = data === null || data === void 0 ? void 0 : data.choices) === null || _b === void 0 ? void 0 : _b[0]) === null || _c === void 0 ? void 0 : _c.message) === null || _d === void 0 ? void 0 : _d.content;
         if (!cleanedContent || typeof cleanedContent !== 'string') {
+            strapi.log.error(`Jodit AI clean: response does not contain choices[0].message.content ${truncateLogValue(safeStringify({
+                buttonName,
+                apiModel,
+                responseStatus: response.status,
+                responseKeys: data && typeof data === 'object' ? Object.keys(data) : [],
+                responseBody: data,
+            }))}`);
             throw new Error('AI API response does not contain cleaned content');
         }
         return stripMarkdownFence(cleanedContent);
