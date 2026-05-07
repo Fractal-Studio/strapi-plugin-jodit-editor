@@ -67,7 +67,7 @@ const index = {
         defaultMessage: "Rich text editor powered by Jodit with advanced formatting options"
       },
       components: {
-        Input: async () => Promise.resolve().then(() => require("./JoditInput-pA11eFBt.js")).then((module2) => ({ default: module2.default }))
+        Input: async () => Promise.resolve().then(() => require("./JoditInput-CiUsk6jk.js")).then((module2) => ({ default: module2.default }))
       },
       options: {
         advanced: [
@@ -196,4 +196,3 @@ const index = {
 exports.DEFAULT_BUTTONS = DEFAULT_BUTTONS;
 exports.STRAPI_MEDIA_BUTTON_NAME = STRAPI_MEDIA_BUTTON_NAME;
 exports.index = index;
-//# sourceMappingURL=index-DNSkSHMK.js.map

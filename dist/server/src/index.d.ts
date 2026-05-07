@@ -9,7 +9,9 @@ declare const _default: {
         strapi: import("@strapi/types/dist/core").Strapi;
     }) => void;
     config: {
-        default: {};
+        default: {
+            aiButtons: {};
+        };
         validator(): void;
     };
     controllers: {
@@ -17,9 +19,25 @@ declare const _default: {
             strapi: import("@strapi/types/dist/core").Strapi;
         }) => {
             index(ctx: any): void;
+            aiButtons(ctx: any): void;
+            cleanWithAi(ctx: any): Promise<any>;
         };
     };
     routes: {
+        admin: {
+            type: string;
+            routes: {
+                method: string;
+                path: string;
+                handler: string;
+                config: {
+                    /**
+                     * Plugin server methods
+                     */
+                    policies: string[];
+                };
+            }[];
+        };
         'content-api': {
             type: string;
             routes: {
@@ -40,6 +58,11 @@ declare const _default: {
             strapi: import("@strapi/types/dist/core").Strapi;
         }) => {
             getWelcomeMessage(): string;
+            getPublicAiButtons(): {
+                name: string;
+                label: string;
+            }[];
+            cleanWithAi(buttonName: string, content: string): Promise<string>;
         };
     };
     contentTypes: {};

@@ -1,20 +1,16 @@
-"use strict";
-Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
-const jsxRuntime = require("react/jsx-runtime");
-const react = require("react");
-const styled = require("styled-components");
-const JoditEditorImport = require("jodit-react");
-const reactIntl = require("react-intl");
-const designSystem = require("@strapi/design-system");
-const admin = require("@strapi/strapi/admin");
-const index = require("./index-NPa8PRt0.js");
-const _interopDefault = (e) => e && e.__esModule ? e : { default: e };
-const styled__default = /* @__PURE__ */ _interopDefault(styled);
-const JoditEditorImport__default = /* @__PURE__ */ _interopDefault(JoditEditorImport);
-const JoditEditor = JoditEditorImport__default.default.default || JoditEditorImport__default.default;
+import { jsxs, jsx, Fragment } from "react/jsx-runtime";
+import { memo, useRef, useState, useCallback, useEffect, useMemo } from "react";
+import styled from "styled-components";
+import JoditEditorImport from "jodit-react";
+import { useIntl } from "react-intl";
+import { Field, Loader } from "@strapi/design-system";
+import { useFetchClient, useStrapiApp } from "@strapi/strapi/admin";
+import { D as DEFAULT_BUTTONS, S as STRAPI_MEDIA_BUTTON_NAME } from "./index-B8NZ1hk-.mjs";
+const JoditEditor = JoditEditorImport.default || JoditEditorImport;
 const cursorPlaceholder = `current_cursor_placeholder`;
 const cursorPlaceholderContent = `<${cursorPlaceholder}></${cursorPlaceholder}>`;
-const JoditContainer = styled__default.default.div`
+const visibleSelectedCellClass = "jodit-cell-selection-visible";
+const JoditContainer = styled.div`
   h1, h2, h3, h4, h5, h6 {
     font-weight: 700;
   }
@@ -71,6 +67,12 @@ const JoditContainer = styled__default.default.div`
     color: ${({ theme }) => theme.colors.neutral800};
   }
 
+  .jodit-wysiwyg td.${visibleSelectedCellClass},
+  .jodit-wysiwyg th.${visibleSelectedCellClass} {
+    background-color: rgba(30, 136, 229, 0.26) !important;
+    box-shadow: inset 0 0 0 2px #1e88e5 !important;
+  }
+
   /* Визуализация кастомного класса в редакторе */
   .text-to-copy, .jodit-btn {
     background-color: #e3f2fd;
@@ -80,6 +82,81 @@ const JoditContainer = styled__default.default.div`
     color: #0d47a1;
   }
 
+`;
+const AiModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(33, 33, 52, 0.48);
+`;
+const AiModalPanel = styled.div`
+  width: min(960px, 100%);
+  max-height: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border-radius: 8px;
+  background: ${({ theme }) => theme.colors.neutral0};
+  color: ${({ theme }) => theme.colors.neutral800};
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.22);
+`;
+const AiModalTitle = styled.h2`
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+`;
+const AiModalText = styled.div`
+  font-size: 14px;
+  line-height: 1.5;
+`;
+const AiModalActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+`;
+const AiModalButton = styled.button`
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid ${({ theme }) => theme.colors.neutral300};
+  border-radius: 4px;
+  background: ${({ theme }) => theme.colors.neutral0};
+  color: ${({ theme }) => theme.colors.neutral800};
+  cursor: pointer;
+  font-weight: 600;
+
+  &[data-variant='primary'] {
+    border-color: #4945ff;
+    background: #4945ff;
+    color: #ffffff;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+`;
+const AiEditorShell = styled.div`
+  min-height: 360px;
+  border: 1px solid ${({ theme }) => theme.colors.neutral200};
+  border-radius: 4px;
+  overflow: hidden;
+`;
+const AiEditorFallback = styled.textarea`
+  width: 100%;
+  min-height: 360px;
+  padding: 12px;
+  border: 0;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 13px;
+  line-height: 1.45;
+  color: ${({ theme }) => theme.colors.neutral800};
+  background: ${({ theme }) => theme.colors.neutral0};
 `;
 const prefixFileUrlWithBackendUrl = (url) => {
   return url.startsWith("/") ? `${window.location.origin}${url}` : url;
@@ -106,6 +183,99 @@ const generateMediaHtml = (file) => {
 <a href="${url}" download="${name}" target="_blank">${alt || name}</a>`;
   }
 };
+const removeVisibleCellSelection = (root) => {
+  root?.querySelectorAll?.(`.${visibleSelectedCellClass}`).forEach((cell) => cell.classList.remove(visibleSelectedCellClass));
+};
+const getTableCell = (target) => {
+  if (!(target instanceof Element)) {
+    return null;
+  }
+  return target.closest("td, th");
+};
+const markVisibleCellRange = (table, from, to) => {
+  removeVisibleCellSelection(table);
+  const fromRow = from.parentElement?.rowIndex ?? 0;
+  const toRow = to.parentElement?.rowIndex ?? fromRow;
+  const startRow = Math.min(fromRow, toRow);
+  const endRow = Math.max(fromRow, toRow);
+  const startCell = Math.min(from.cellIndex, to.cellIndex);
+  const endCell = Math.max(from.cellIndex, to.cellIndex);
+  Array.from(table.rows).forEach((row) => {
+    if (row.rowIndex < startRow || row.rowIndex > endRow) {
+      return;
+    }
+    Array.from(row.cells).forEach((cell) => {
+      if (cell.cellIndex >= startCell && cell.cellIndex <= endCell) {
+        cell.classList.add(visibleSelectedCellClass);
+      }
+    });
+  });
+};
+const stripVisibleCellSelectionFromHtml = (content) => {
+  if (!content || typeof document === "undefined") {
+    return content;
+  }
+  const template = document.createElement("template");
+  template.innerHTML = content;
+  removeVisibleCellSelection(template.content);
+  return template.innerHTML;
+};
+const AceHtmlEditor = ({
+  value,
+  onChange
+}) => {
+  const containerRef = useRef(null);
+  const aceRef = useRef(null);
+  const [aceReady, setAceReady] = useState(false);
+  useEffect(() => {
+    const initAce = () => {
+      const ace = window.ace;
+      if (!containerRef.current || !ace || aceRef.current) {
+        return;
+      }
+      const editor = ace.edit(containerRef.current);
+      aceRef.current = editor;
+      editor.setTheme("ace/theme/idle_fingers");
+      editor.session.setMode("ace/mode/html");
+      editor.session.setUseWrapMode(true);
+      editor.setValue(value || "", -1);
+      editor.on("change", () => onChange(editor.getValue()));
+      setAceReady(true);
+    };
+    initAce();
+    if (!window.ace) {
+      const script = document.createElement("script");
+      script.src = "https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.2/ace.js";
+      script.async = true;
+      script.onload = initAce;
+      document.head.appendChild(script);
+      return () => {
+        aceRef.current?.destroy?.();
+        aceRef.current = null;
+        script.remove();
+      };
+    }
+    return () => {
+      aceRef.current?.destroy?.();
+      aceRef.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    if (aceRef.current && aceRef.current.getValue() !== value) {
+      aceRef.current.setValue(value || "", -1);
+    }
+  }, [value]);
+  return /* @__PURE__ */ jsxs(AiEditorShell, { children: [
+    /* @__PURE__ */ jsx(
+      "div",
+      {
+        ref: containerRef,
+        style: { display: aceReady ? "block" : "none", width: "100%", minHeight: 360 }
+      }
+    ),
+    !aceReady ? /* @__PURE__ */ jsx(AiEditorFallback, { value, onChange: (event) => onChange(event.target.value) }) : null
+  ] });
+};
 const IMAGE_SCHEMA_FIELDS = [
   "name",
   "alternativeText",
@@ -131,7 +301,7 @@ const pick = (object, keys) => {
 const MediaLib = ({ isOpen = false, onChange = () => {
 }, onToggle = () => {
 } }) => {
-  const components = admin.useStrapiApp("ImageDialog", (state) => state.components);
+  const components = useStrapiApp("ImageDialog", (state) => state.components);
   if (!components || !isOpen) return null;
   const ImageDialog = components?.["media-library"] ?? null;
   const handleSelectAssets = (files) => {
@@ -153,7 +323,7 @@ const MediaLib = ({ isOpen = false, onChange = () => {
     return null;
   }
   const ComponentToRender = ImageDialog?.default || ImageDialog;
-  return /* @__PURE__ */ jsxRuntime.jsx(
+  return /* @__PURE__ */ jsx(
     ComponentToRender,
     {
       onClose: onToggle,
@@ -287,15 +457,92 @@ const JoditInput = ({
       dialog.open();
     }
   };
-  const { formatMessage } = reactIntl.useIntl();
-  const { post } = admin.useFetchClient();
-  const editorRef = react.useRef(null);
-  const [mediaLibVisible, setMediaLibVisible] = react.useState(false);
-  const [initialValue] = react.useState(value || "");
-  const [isLoading, setIsLoading] = react.useState(false);
-  const toggleMediaLib = react.useCallback(() => {
+  const { formatMessage } = useIntl();
+  const { get, post } = useFetchClient();
+  const editorRef = useRef(null);
+  const [mediaLibVisible, setMediaLibVisible] = useState(false);
+  const [aiButtons, setAiButtons] = useState([]);
+  const [aiModal, setAiModal] = useState({
+    isOpen: false,
+    status: "loading",
+    content: ""
+  });
+  const [initialValue] = useState(value || "");
+  const [isLoading, setIsLoading] = useState(false);
+  const toggleMediaLib = useCallback(() => {
     setMediaLibVisible((prev) => !prev);
   }, []);
+  useEffect(() => {
+    let isMounted = true;
+    get("/jodit-editor/ai-buttons").then((response) => {
+      if (!isMounted) {
+        return;
+      }
+      setAiButtons(Array.isArray(response.data?.buttons) ? response.data.buttons : []);
+    }).catch((error2) => {
+      console.warn("Jodit: failed to load AI buttons configuration", error2);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, [get]);
+  const closeAiModal = useCallback(() => {
+    setAiModal({
+      isOpen: false,
+      status: "loading",
+      content: ""
+    });
+  }, []);
+  const runAiClean = useCallback(async (button) => {
+    const jodit = editorRef.current;
+    const content = stripVisibleCellSelectionFromHtml(jodit?.value || value || "");
+    setAiModal({
+      isOpen: true,
+      status: "loading",
+      buttonName: button.name,
+      label: button.label,
+      content: ""
+    });
+    try {
+      const response = await post("/jodit-editor/ai-clean", {
+        button: button.name,
+        content
+      });
+      const cleanedContent = response.data?.content;
+      if (!cleanedContent || typeof cleanedContent !== "string") {
+        throw new Error("AI response does not contain content");
+      }
+      setAiModal({
+        isOpen: true,
+        status: "review",
+        buttonName: button.name,
+        label: button.label,
+        content: cleanedContent
+      });
+    } catch (error2) {
+      setAiModal({
+        isOpen: true,
+        status: "error",
+        buttonName: button.name,
+        label: button.label,
+        content: "",
+        error: error2?.response?.data?.error?.message || error2?.message || "AI clean failed"
+      });
+    }
+  }, [post, value]);
+  const acceptAiContent = useCallback(() => {
+    const jodit = editorRef.current;
+    if (jodit && aiModal.content) {
+      jodit.value = aiModal.content;
+    }
+    onChange({
+      target: {
+        name,
+        value: aiModal.content
+      }
+    });
+    closeAiModal();
+  }, [aiModal.content, closeAiModal, name, onChange]);
   const fileToMediaObject = async (file, handleFileUpload2, webpEnabled2 = []) => {
     return new Promise(async (resolve) => {
       if (handleFileUpload2) {
@@ -339,11 +586,23 @@ const JoditInput = ({
   };
   const options = attribute?.options || {};
   const height = options.height || 400;
-  const buttons = options.buttons ? options.buttons.split(",").map((btn) => btn.trim()) : index.DEFAULT_BUTTONS.split(",").map((btn) => btn.trim());
-  const mediaLibButtonIndex = buttons.findIndex((btn) => btn === index.STRAPI_MEDIA_BUTTON_NAME);
+  const buttons = options.buttons ? options.buttons.split(",").map((btn) => btn.trim()) : DEFAULT_BUTTONS.split(",").map((btn) => btn.trim());
+  const mediaLibButtonIndex = buttons.findIndex((btn) => btn === STRAPI_MEDIA_BUTTON_NAME);
   if (mediaLibButtonIndex !== -1) {
     buttons[mediaLibButtonIndex] = mediaLibButton;
   }
+  const aiButtonControls = aiButtons.reduce((acc, button) => {
+    acc[button.name] = {
+      name: button.name,
+      text: button.label,
+      tooltip: button.label,
+      exec: () => runAiClean(button)
+    };
+    if (!buttons.some((item) => item === button.name || item?.name === button.name)) {
+      buttons.push(button.name);
+    }
+    return acc;
+  }, {});
   const removeButtons = options.removeButtons ? options.removeButtons.split(",").map((btn) => btn.trim()) : [];
   const showToolbar = options.toolbar !== false;
   const fonts = options.fonts ? options.fonts.split("\n").reduce((acc, font) => {
@@ -351,7 +610,7 @@ const JoditInput = ({
     return acc;
   }, {}) : {};
   const webpEnabled = options.webp !== "" ? options.webp?.split(",") : [];
-  const handleFileUpload = react.useCallback(async (file) => {
+  const handleFileUpload = useCallback(async (file) => {
     try {
       const formData = new FormData();
       formData.append("files", file);
@@ -371,7 +630,7 @@ const JoditInput = ({
       return null;
     }
   }, [post]);
-  const config = react.useMemo(() => ({
+  const config = useMemo(() => ({
     readonly: disabled || options.readonly || false,
     height,
     toolbar: showToolbar,
@@ -382,6 +641,7 @@ const JoditInput = ({
     addNewLine: false,
     // Отключает плавающую кнопку вставки строки около таблиц/медиа
     addNewLineOnDBLClick: false,
+    tableAllowCellSelection: true,
     width: "100%",
     placeholder: formatMessage({
       id: placeholder || "jodit-editor.placeholder",
@@ -398,19 +658,57 @@ const JoditInput = ({
     // Toolbar configuration
     buttons,
     removeButtons,
+    table: {
+      splitBlockOnInsertTable: true,
+      selectionCellStyle: "background-color: rgba(30, 136, 229, 0.22) !important; border: 1px double #1e88e5 !important;",
+      useExtraClassesOptions: false
+    },
     controls: {
       font: {
         list: Object.keys(fonts).length > 0 ? fonts : {}
       },
       copytext: copyTextButton,
       // COPYTEXT: регистрация кнопки
-      linkbtn: insertLinkButton
+      linkbtn: insertLinkButton,
       // LINKBTN: регистрация кнопки
+      ...aiButtonControls
     },
     // Event handlers
     events: {
       afterInit: function(jodit) {
         console.log("📎 Jodit: Editor initialized, storing instance:", jodit);
+        let selectionStartCell = null;
+        const onCellSelectionStart = (event) => {
+          const cell = getTableCell(event.target);
+          const table = cell?.closest("table");
+          if (!cell || !table || !jodit.editor.contains(table)) {
+            selectionStartCell = null;
+            removeVisibleCellSelection(jodit.editor);
+            return;
+          }
+          selectionStartCell = cell;
+          markVisibleCellRange(table, cell, cell);
+        };
+        const onCellSelectionMove = (event) => {
+          if (!selectionStartCell) {
+            return;
+          }
+          const cell = getTableCell(event.target);
+          const table = selectionStartCell.closest("table");
+          if (!cell || !table || cell.closest("table") !== table) {
+            return;
+          }
+          markVisibleCellRange(table, selectionStartCell, cell);
+        };
+        const onCellSelectionEnd = () => {
+          selectionStartCell = null;
+        };
+        const onEditorMouseDown = (event) => {
+          if (!getTableCell(event.target)) {
+            removeVisibleCellSelection(jodit.editor);
+          }
+        };
+        jodit.e.on(jodit.editor, "mousedown.visible-cell-selection", onCellSelectionStart).on(jodit.editor, "mousemove.visible-cell-selection", onCellSelectionMove).on(jodit.editor, "mouseup.visible-cell-selection", onCellSelectionEnd).on(jodit.editor, "mouseleave.visible-cell-selection", onCellSelectionEnd).on(jodit.editor, "mousedown.visible-cell-selection-clear", onEditorMouseDown).on("beforeCommand.visible-cell-selection", () => removeVisibleCellSelection(jodit.editor));
       },
       beforeOpen: () => {
         console.log("📎 Jodit: Editor opened");
@@ -512,7 +810,9 @@ const JoditInput = ({
     placeholder,
     formatMessage,
     toggleMediaLib,
-    handleFileUpload
+    handleFileUpload,
+    aiButtons,
+    runAiClean
   ]);
   const displayLabel = label || fieldSchema?.displayName || metadatas?.label || formatMessage(intlLabel);
   const displayDescription = description || fieldSchema?.description || metadatas?.description;
@@ -520,8 +820,8 @@ const JoditInput = ({
   const isSourceMode = (jodit) => {
     return jodit?.getMode?.() === 2;
   };
-  return /* @__PURE__ */ jsxRuntime.jsxs(
-    designSystem.Field.Root,
+  return /* @__PURE__ */ jsxs(
+    Field.Root,
     {
       name,
       id: name,
@@ -530,8 +830,8 @@ const JoditInput = ({
       hint: displayHint,
       style: { position: "relative" },
       children: [
-        /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Label, { children: displayLabel }),
-        /* @__PURE__ */ jsxRuntime.jsx(JoditContainer, { children: /* @__PURE__ */ jsxRuntime.jsx(
+        /* @__PURE__ */ jsx(Field.Label, { children: displayLabel }),
+        /* @__PURE__ */ jsx(JoditContainer, { children: /* @__PURE__ */ jsx(
           JoditEditor,
           {
             value: initialValue,
@@ -543,8 +843,10 @@ const JoditInput = ({
             onBlur: (newContent) => {
               console.log("📎 Jodit: Content changed", newContent?.length || 0, "characters");
               const jodit = editorRef.current;
+              removeVisibleCellSelection(jodit?.editor);
               jodit?.selection.save();
-              onChange({ target: { name, value: newContent.split(cursorPlaceholderContent).join("").trim() } });
+              const cleanContent = stripVisibleCellSelectionFromHtml(newContent);
+              onChange({ target: { name, value: cleanContent.split(cursorPlaceholderContent).join("").trim() } });
             },
             onChange: (newContent) => {
               console.log("📎 Jodit: Content changed", newContent?.length || 0, "characters");
@@ -554,13 +856,35 @@ const JoditInput = ({
                 return;
               }
               jodit?.selection.save();
-              onChange({ target: { name, value: newContent.split(cursorPlaceholderContent).join("").trim() } });
+              const cleanContent = stripVisibleCellSelectionFromHtml(newContent);
+              onChange({ target: { name, value: cleanContent.split(cursorPlaceholderContent).join("").trim() } });
             }
           }
         ) }),
-        displayDescription ? /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Hint, { children: displayDescription }) : null,
-        error ? /* @__PURE__ */ jsxRuntime.jsx(designSystem.Field.Error, { children: error }) : null,
-        /* @__PURE__ */ jsxRuntime.jsx(
+        displayDescription ? /* @__PURE__ */ jsx(Field.Hint, { children: displayDescription }) : null,
+        error ? /* @__PURE__ */ jsx(Field.Error, { children: error }) : null,
+        aiModal.isOpen ? /* @__PURE__ */ jsx(AiModalOverlay, { children: /* @__PURE__ */ jsxs(AiModalPanel, { children: [
+          /* @__PURE__ */ jsx(AiModalTitle, { children: aiModal.label || "AI clean" }),
+          aiModal.status === "loading" ? /* @__PURE__ */ jsx(AiModalText, { children: "Ожидание ответа AI..." }) : null,
+          aiModal.status === "error" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx(AiModalText, { children: aiModal.error || "Ошибка при выполнении AI clean" }),
+            /* @__PURE__ */ jsx(AiModalActions, { children: /* @__PURE__ */ jsx(AiModalButton, { type: "button", onClick: closeAiModal, children: "Закрыть" }) })
+          ] }) : null,
+          aiModal.status === "review" ? /* @__PURE__ */ jsxs(Fragment, { children: [
+            /* @__PURE__ */ jsx(
+              AceHtmlEditor,
+              {
+                value: aiModal.content,
+                onChange: (content) => setAiModal((prev) => ({ ...prev, content }))
+              }
+            ),
+            /* @__PURE__ */ jsxs(AiModalActions, { children: [
+              /* @__PURE__ */ jsx(AiModalButton, { type: "button", onClick: closeAiModal, children: "Отмена" }),
+              /* @__PURE__ */ jsx(AiModalButton, { type: "button", "data-variant": "primary", onClick: acceptAiContent, children: "Принять" })
+            ] })
+          ] }) : null
+        ] }) }) : null,
+        /* @__PURE__ */ jsx(
           MediaLib,
           {
             isOpen: mediaLibVisible,
@@ -568,7 +892,7 @@ const JoditInput = ({
             onToggle: toggleMediaLib
           }
         ),
-        isLoading ? /* @__PURE__ */ jsxRuntime.jsx(
+        isLoading ? /* @__PURE__ */ jsx(
           "div",
           {
             style: {
@@ -579,7 +903,7 @@ const JoditInput = ({
               height: "100%",
               background: "rgba(255,255,255,0.5)"
             },
-            children: /* @__PURE__ */ jsxRuntime.jsx(
+            children: /* @__PURE__ */ jsx(
               "div",
               {
                 style: {
@@ -593,7 +917,7 @@ const JoditInput = ({
                   justifyContent: "center",
                   background: "rgba(255,255,255,0.5)"
                 },
-                children: /* @__PURE__ */ jsxRuntime.jsx(designSystem.Loader, {})
+                children: /* @__PURE__ */ jsx(Loader, {})
               }
             )
           }
@@ -602,8 +926,9 @@ const JoditInput = ({
     }
   );
 };
-const JoditInput_default = react.memo(JoditInput, (prevProps, nextProps) => {
+const JoditInput_default = memo(JoditInput, (prevProps, nextProps) => {
   return prevProps.name === nextProps.name && prevProps.required === nextProps.required && prevProps.disabled === nextProps.disabled && prevProps.error === nextProps.error;
 });
-exports.default = JoditInput_default;
-//# sourceMappingURL=JoditInput-BCWEnths.js.map
+export {
+  JoditInput_default as default
+};
