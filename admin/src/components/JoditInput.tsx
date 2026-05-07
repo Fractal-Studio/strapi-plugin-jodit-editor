@@ -31,6 +31,7 @@ import { Loader } from '@strapi/design-system';
 import { useFetchClient, useStrapiApp } from '@strapi/strapi/admin';
 
 import { DEFAULT_BUTTONS, STRAPI_MEDIA_BUTTON_NAME } from './config';
+import cleanerImage from './cleaner.jpg';
 
 const cursorPlaceholder = `current_cursor_placeholder`;
 const cursorPlaceholderContent = `<${cursorPlaceholder}></${cursorPlaceholder}>`;
@@ -143,6 +144,12 @@ const AiModalTitle = styled.h2`
 const AiModalText = styled.div`
   font-size: 14px;
   line-height: 1.5;
+`;
+
+const AiModalImage = styled.img`
+  width: min(360px, 100%);
+  align-self: center;
+  border-radius: 6px;
 `;
 
 const AiModalActions = styled.div`
@@ -653,6 +660,7 @@ const JoditInput: React.FC<JoditInputProps> = ({
   const { get, post } = useFetchClient();
 
   const editorRef = useRef<IJodit | null>(null);
+  const aiCleanAbortRef = useRef<AbortController | null>(null);
 
   // Media library state (following CKEditor pattern)
   const [mediaLibVisible, setMediaLibVisible] = useState(false);
@@ -692,6 +700,8 @@ const JoditInput: React.FC<JoditInputProps> = ({
   }, [get]);
 
   const closeAiModal = useCallback(() => {
+    aiCleanAbortRef.current?.abort();
+    aiCleanAbortRef.current = null;
     setAiModal({
       isOpen: false,
       status: 'loading',
@@ -702,6 +712,10 @@ const JoditInput: React.FC<JoditInputProps> = ({
   const runAiClean = useCallback(async (button: AiButtonConfig) => {
     const jodit = editorRef.current;
     const content = stripVisibleCellSelectionFromHtml(jodit?.value || value || '');
+    const abortController = new AbortController();
+
+    aiCleanAbortRef.current?.abort();
+    aiCleanAbortRef.current = abortController;
 
     setAiModal({
       isOpen: true,
@@ -715,6 +729,8 @@ const JoditInput: React.FC<JoditInputProps> = ({
       const response = await post('/jodit-editor/ai-clean', {
         button: button.name,
         content,
+      }, {
+        signal: abortController.signal,
       });
       const cleanedContent = response.data?.content;
 
@@ -730,6 +746,10 @@ const JoditInput: React.FC<JoditInputProps> = ({
         content: cleanedContent,
       });
     } catch (error: any) {
+      if (abortController.signal.aborted) {
+        return;
+      }
+
       setAiModal({
         isOpen: true,
         status: 'error',
@@ -738,6 +758,10 @@ const JoditInput: React.FC<JoditInputProps> = ({
         content: '',
         error: error?.response?.data?.error?.message || error?.message || 'AI clean failed',
       });
+    } finally {
+      if (aiCleanAbortRef.current === abortController) {
+        aiCleanAbortRef.current = null;
+      }
     }
   }, [post, value]);
 
@@ -1166,7 +1190,17 @@ const JoditInput: React.FC<JoditInputProps> = ({
             <AiModalTitle>{aiModal.label || 'AI clean'}</AiModalTitle>
 
             {aiModal.status === 'loading' ? (
-              <AiModalText>Ожидание ответа AI...</AiModalText>
+              <>
+                <AiModalText>
+                  Ожидание ответа AI... Это может занять до нескольких минут.
+                </AiModalText>
+                <AiModalImage src={cleanerImage} alt="" />
+                <AiModalActions>
+                  <AiModalButton type="button" onClick={closeAiModal}>
+                    Отмена
+                  </AiModalButton>
+                </AiModalActions>
+              </>
             ) : null}
 
             {aiModal.status === 'error' ? (
