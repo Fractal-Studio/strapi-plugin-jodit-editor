@@ -64,7 +64,7 @@ const index = {
         defaultMessage: "Rich text editor powered by Jodit with advanced formatting options"
       },
       components: {
-        Input: async () => import("./JoditInput-DiIGNxRv.mjs").then((module) => ({ default: module.default }))
+        Input: async () => import("./JoditInput-B_6g5cix.mjs").then((module) => ({ default: module.default }))
       },
       options: {
         advanced: [
@@ -195,4 +195,3 @@ export {
   STRAPI_MEDIA_BUTTON_NAME as S,
   index as i
 };
-//# sourceMappingURL=index-Bd-C13_i.mjs.map

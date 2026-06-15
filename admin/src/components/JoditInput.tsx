@@ -271,8 +271,12 @@ const markVisibleCellRange = (
   });
 };
 
-const stripVisibleCellSelectionFromHtml = (content: string) => {
-  if (!content || typeof document === 'undefined') {
+const stripVisibleCellSelectionFromHtml = (content: string): string => {
+  if (
+    !content ||
+    !content.includes(visibleSelectedCellClass) ||
+    typeof document === 'undefined'
+  ) {
     return content;
   }
 
@@ -1156,7 +1160,6 @@ const JoditInput: React.FC<JoditInputProps> = ({
             console.log('📎 Jodit: Content changed', newContent?.length || 0, 'characters');
             const jodit = editorRef.current;
             removeVisibleCellSelection(jodit?.editor);
-            jodit?.selection.save();
             const cleanContent = stripVisibleCellSelectionFromHtml(newContent);
             onChange({ target: { name, value: cleanContent.split(cursorPlaceholderContent).join('').trim() } });
           }}
@@ -1170,7 +1173,6 @@ const JoditInput: React.FC<JoditInputProps> = ({
               return;
             }
 
-            jodit?.selection.save();
             const cleanContent = stripVisibleCellSelectionFromHtml(newContent);
             onChange({ target: { name, value: cleanContent.split(cursorPlaceholderContent).join('').trim() } });
           }}

@@ -7,7 +7,7 @@ const JoditEditorImport = require("jodit-react");
 const reactIntl = require("react-intl");
 const designSystem = require("@strapi/design-system");
 const admin = require("@strapi/strapi/admin");
-const index = require("./index-h73iWZWN.js");
+const index = require("./index-D-Y6v7E0.js");
 const _interopDefault = (e) => e && e.__esModule ? e : { default: e };
 const styled__default = /* @__PURE__ */ _interopDefault(styled);
 const JoditEditorImport__default = /* @__PURE__ */ _interopDefault(JoditEditorImport);
@@ -223,7 +223,7 @@ const markVisibleCellRange = (table, from, to) => {
   });
 };
 const stripVisibleCellSelectionFromHtml = (content) => {
-  if (!content || typeof document === "undefined") {
+  if (!content || !content.includes(visibleSelectedCellClass) || typeof document === "undefined") {
     return content;
   }
   const template = document.createElement("template");
@@ -870,7 +870,6 @@ const JoditInput = ({
               console.log("📎 Jodit: Content changed", newContent?.length || 0, "characters");
               const jodit = editorRef.current;
               removeVisibleCellSelection(jodit?.editor);
-              jodit?.selection.save();
               const cleanContent = stripVisibleCellSelectionFromHtml(newContent);
               onChange({ target: { name, value: cleanContent.split(cursorPlaceholderContent).join("").trim() } });
             },
@@ -881,7 +880,6 @@ const JoditInput = ({
                 onChange({ target: { name, value: newContent } });
                 return;
               }
-              jodit?.selection.save();
               const cleanContent = stripVisibleCellSelectionFromHtml(newContent);
               onChange({ target: { name, value: cleanContent.split(cursorPlaceholderContent).join("").trim() } });
             }
@@ -960,4 +958,3 @@ const JoditInput_default = react.memo(JoditInput, (prevProps, nextProps) => {
   return prevProps.name === nextProps.name && prevProps.required === nextProps.required && prevProps.disabled === nextProps.disabled && prevProps.error === nextProps.error;
 });
 exports.default = JoditInput_default;
-//# sourceMappingURL=JoditInput-DRuDauFd.js.map

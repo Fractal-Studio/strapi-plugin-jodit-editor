@@ -1,6 +1,5 @@
-import { i } from "../_chunks/index-Bd-C13_i.mjs";
+import { i } from "../_chunks/index-j3Lp9BFN.mjs";
 import "jodit/es2015/jodit.css";
 export {
   i as default
 };
-//# sourceMappingURL=index.mjs.map
